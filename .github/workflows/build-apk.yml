@@ -1,0 +1,77 @@
+name: Build Â Search Artist Manager APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build read-only debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Verify strict read-only source
+        shell: bash
+        run: |
+          manifest="app/src/main/AndroidManifest.xml"
+          source_dir="app/src/main"
+          grep -q 'com.beeper.android.permission.READ_PERMISSION' "$manifest"
+          if grep -q 'com.beeper.android.permission.SEND_PERMISSION' "$manifest"; then
+            echo "::error::Forbidden Beeper send permission found in manifest"
+            exit 1
+          fi
+          if grep -R -E 'ContentResolver[[:space:]]*\.[[:space:]]*insert|contentResolver[[:space:]]*\.[[:space:]]*insert' "$source_dir"; then
+            echo "::error::Forbidden ContentResolver write call found"
+            exit 1
+          fi
+          if grep -R -E 'content://com\.beeper\.api/messages[^\n]*(insert|write|send)' "$source_dir"; then
+            echo "::error::Possible Beeper message-writing implementation found"
+            exit 1
+          fi
+          echo "Strict read-only source verification passed"
+
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Give APK its release filename
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            dist/A-Search-Artist-Manager-v0.3-readonly.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: A-Search-Artist-Manager-v0.3-readonly
+          path: dist/A-Search-Artist-Manager-v0.3-readonly.apk
+          if-no-files-found: error
+          retention-days: 30
