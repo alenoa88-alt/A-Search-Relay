@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -68,10 +68,29 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk \
             dist/A-Search-Artist-Manager-v0.3-readonly.apk
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: A-Search-Artist-Manager-v0.3-readonly
           path: dist/A-Search-Artist-Manager-v0.3-readonly.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v0.3-readonly"
+          apk="dist/A-Search-Artist-Manager-v0.3-readonly.apk"
+          notes="Strict read-only Android build for Beeper validation. Sending is disabled."
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$apk" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Â Search Artist Manager v0.3 Read-Only" \
+              --notes "$notes"
+          fi
