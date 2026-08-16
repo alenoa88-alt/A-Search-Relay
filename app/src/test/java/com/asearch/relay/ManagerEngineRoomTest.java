@@ -22,7 +22,7 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 35)
+@Config(sdk = 35, application = android.app.Application.class)
 public class ManagerEngineRoomTest {
     private Context context;
     private ManagerDatabase database;
@@ -177,3 +177,4 @@ public class ManagerEngineRoomTest {
         }
     }
 }
+

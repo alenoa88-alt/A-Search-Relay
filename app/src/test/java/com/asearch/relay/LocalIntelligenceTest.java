@@ -3,6 +3,9 @@ package com.asearch.relay;
 import com.asearch.relay.data.Entities;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,6 +13,8 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 35, application = android.app.Application.class)
 public class LocalIntelligenceTest {
     @Test
     public void styleSamplesUseOnlyAleSentMessages() {
@@ -127,4 +132,5 @@ public class LocalIntelligenceTest {
         return entity;
     }
 }
+
 

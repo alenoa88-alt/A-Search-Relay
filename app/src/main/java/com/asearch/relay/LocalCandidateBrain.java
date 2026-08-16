@@ -96,11 +96,11 @@ public final class LocalCandidateBrain implements ManagerBrain {
     }
 
     private static String category(String context, int opportunitySignals, int moneySignals) {
-        if (context.matches(".*(call me|give me a call).*")) return "CALL REQUEST";
+        if (context.matches(".*(booking|booked|gig|perform|lineup).*")) return "BOOKING";
         if (context.matches(".*(radio|interview|press|podcast).*")) return "MEDIA";
         if (context.matches(".*(sponsor|sponsorship).*")) return "SPONSORSHIP";
         if (context.matches(".*(collab|collaboration|feature).*")) return "COLLABORATION";
-        if (context.matches(".*(booking|booked|gig|perform|lineup).*")) return "BOOKING";
+        if (context.matches(".*(call me|give me a call).*")) return "CALL REQUEST";
         if (context.matches(".*(deadline|submit by|submission).*")) return "DEADLINE";
         if (context.matches(".*(meeting|meet).*")) return "MEETING";
         if (context.matches(".*(confirmed|locked in).*")) return "CONFIRMATION";
@@ -142,3 +142,5 @@ public final class LocalCandidateBrain implements ManagerBrain {
         return "Review the evidence and decide the next manager action.";
     }
 }
+
+
