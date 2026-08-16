@@ -10,8 +10,8 @@ android {
         applicationId = "com.asearch.relay"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4A"
+        versionCode = 5
+        versionName = "0.4A.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
@@ -48,5 +48,3 @@ dependencies {
     testImplementation("androidx.room:room-testing:2.8.4")
     testImplementation("androidx.test:core:1.7.0")
 }
-
-

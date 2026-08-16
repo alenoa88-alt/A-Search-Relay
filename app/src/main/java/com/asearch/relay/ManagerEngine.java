@@ -205,7 +205,8 @@ public final class ManagerEngine {
 
         int careerSignals = conversation.careerSignalScore;
         imported.sort(Comparator.comparingLong(item -> item.timestamp));
-        for (Entities.MessageEntity message : imported) {
+        List<Entities.MessageEntity> candidateMessages = selectCandidateMessages(imported, initial);
+        for (Entities.MessageEntity message : candidateMessages) {
             ManagerCandidate candidate = brain.analyze(message, contextMessages, relationship);
             saveDecision(message, candidate);
             if (!candidate.careerRelevant) {
@@ -261,6 +262,25 @@ public final class ManagerEngine {
         return entity;
     }
 
+    static List<Entities.MessageEntity> selectCandidateMessages(
+            List<Entities.MessageEntity> imported,
+            boolean initial
+    ) {
+        List<Entities.MessageEntity> selected = new ArrayList<>();
+        if (!initial) {
+            selected.addAll(imported);
+            return selected;
+        }
+        for (int index = imported.size() - 1; index >= 0; index--) {
+            Entities.MessageEntity message = imported.get(index);
+            if (!message.sentByMe && !message.deleted && message.text != null
+                    && !message.text.trim().isEmpty()) {
+                selected.add(message);
+                break;
+            }
+        }
+        return selected;
+    }
     public static boolean shouldImport(long messageTimestamp, long checkpointTimestamp) {
         return checkpointTimestamp <= 0 || messageTimestamp > checkpointTimestamp;
     }
@@ -373,4 +393,3 @@ public final class ManagerEngine {
         dao.upsertSyncState(state);
     }
 }
-

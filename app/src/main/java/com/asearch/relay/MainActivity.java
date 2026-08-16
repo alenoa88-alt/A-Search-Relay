@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.graphics.Color;
@@ -18,6 +19,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -50,8 +52,11 @@ public final class MainActivity extends Activity {
     private static final int PURPLE = Color.rgb(109, 40, 217);
     private static final int CYAN = Color.rgb(8, 145, 178);
     private static final int SURFACE = Color.rgb(246, 247, 251);
+    private static final int DASHBOARD_PREVIEW_LIMIT = 5;
+    private static final int LONG_LIST_LIMIT = 30;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ExecutorService reader = Executors.newFixedThreadPool(2);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable observerDebounce = () -> runReconciliation("Beeper change detected");
     private final Runnable clockTicker = new Runnable() {
@@ -70,7 +75,11 @@ public final class MainActivity extends Activity {
     private TextView pendingCountView;
     private ContentObserver contentObserver;
     private boolean observerRegistered;
-    private boolean initialImportRunning;
+    private volatile boolean initialImportRunning;
+    private TextView initialImportStatusView;
+    private ProgressBar initialImportProgressView;
+    private int lastImportProgress;
+    private long lastImportProgressAt;
     private String currentScreen = "TODAY";
     private String latestDiagnosticsJson;
 
@@ -101,6 +110,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
         worker.shutdownNow();
+        reader.shutdownNow();
         super.onDestroy();
     }
 
@@ -154,22 +164,28 @@ public final class MainActivity extends Activity {
         header.addView(monitoringBadge, badgeParams);
 
         LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.setOrientation(isPortrait() ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         stats.setGravity(Gravity.CENTER_VERTICAL);
         beeperActivityView = stat("LAST BEEPER", "—");
         reconciliationView = stat("RECONCILED", "—");
         maltaTimeView = stat("MALTA TIME", "—");
         pendingCountView = stat("PENDING", "0");
-        stats.addView(beeperActivityView, weight());
-        stats.addView(reconciliationView, weight());
-        stats.addView(maltaTimeView, weight());
-        stats.addView(pendingCountView, weight());
+        if (isPortrait()) {
+            stats.addView(statRow(beeperActivityView, reconciliationView));
+            stats.addView(statRow(maltaTimeView, pendingCountView));
+        } else {
+            stats.addView(beeperActivityView, weight());
+            stats.addView(reconciliationView, weight());
+            stats.addView(maltaTimeView, weight());
+            stats.addView(pendingCountView, weight());
+        }
         LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(-1, -2);
         statsParams.topMargin = dp(14);
         header.addView(stats, statsParams);
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(16), dp(16), dp(16), dp(30));
@@ -181,20 +197,58 @@ public final class MainActivity extends Activity {
     }
 
     private View buildNavigation() {
+        String[] tabs = {"TODAY", "OPPORTUNITIES", "CALENDAR", "FOLLOW-UPS", "CONTACTS", "ACTIVITY"};
+        if (isPortrait()) {
+            LinearLayout navigation = new LinearLayout(this);
+            navigation.setOrientation(LinearLayout.VERTICAL);
+            navigation.setPadding(dp(6), dp(5), dp(6), dp(5));
+            navigation.setBackgroundColor(Color.WHITE);
+            for (int rowIndex = 0; rowIndex < 2; rowIndex++) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                for (int column = 0; column < 3; column++) {
+                    String tab = tabs[rowIndex * 3 + column];
+                    Button button = navigationButton(tab);
+                    row.addView(button, new LinearLayout.LayoutParams(0, dp(48), 1));
+                }
+                navigation.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
+            }
+            return navigation;
+        }
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.setBackgroundColor(Color.WHITE);
         LinearLayout nav = new LinearLayout(this);
         nav.setPadding(dp(8), dp(7), dp(8), dp(7));
-        String[] tabs = {"TODAY", "OPPORTUNITIES", "CALENDAR", "FOLLOW-UPS", "CONTACTS", "ACTIVITY"};
         for (String tab : tabs) {
-            Button button = compactButton(tab, Color.TRANSPARENT);
-            button.setTextColor(INK);
-            button.setOnClickListener(view -> showScreen(tab));
-            nav.addView(button);
+            Button button = navigationButton(tab);
+            button.setMinWidth(dp(120));
+            nav.addView(button, new LinearLayout.LayoutParams(-2, dp(52)));
         }
         scroll.addView(nav);
         return scroll;
+    }
+
+    private Button navigationButton(String tab) {
+        Button button = compactButton(tab, Color.TRANSPARENT);
+        button.setTextColor(INK);
+        button.setSingleLine(true);
+        button.setContentDescription("Open " + tab.toLowerCase(Locale.ROOT));
+        button.setOnClickListener(view -> showScreen(tab));
+        return button;
+    }
+
+    private boolean isPortrait() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    private LinearLayout statRow(TextView first, TextView second) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(4), 0, dp(4));
+        row.addView(first, weight());
+        row.addView(second, weight());
+        return row;
     }
 
     private void showScreen(String screen) {
@@ -205,6 +259,7 @@ public final class MainActivity extends Activity {
             return;
         }
         addScreenTitle(screen);
+        if (initialImportRunning) showInitialImportProgress("Scanning Beeper safely in the background…", 0, 0);
         if (!hasBeeperAccess()) {
             addInfoCard(
                     "BEEPER ACCESS REQUIRED",
@@ -228,7 +283,7 @@ public final class MainActivity extends Activity {
         Button check = primaryButton("⚡ CHECK NOW", PURPLE);
         check.setOnClickListener(view -> runReconciliation("Checking recent Beeper changes"));
         body.addView(check);
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.ActionEntity> actions = dao.getOpenActions();
             List<Entities.OpportunityEntity> opportunities = dao.getOpportunities();
             List<Entities.FollowUpEntity> followUps = dao.getOpenFollowUps();
@@ -249,7 +304,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadOpportunities() {
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.OpportunityEntity> items = dao.getOpportunities();
             runOnUiThread(() -> {
                 if (!"OPPORTUNITIES".equals(currentScreen)) return;
@@ -266,7 +321,7 @@ public final class MainActivity extends Activity {
         views.addView(chip("LIST"));
         views.addView(chip("MONTH"));
         body.addView(views);
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.EventEntity> events = dao.getEvents();
             runOnUiThread(() -> {
                 if (!"CALENDAR".equals(currentScreen)) return;
@@ -274,7 +329,7 @@ public final class MainActivity extends Activity {
                 if (events.isEmpty()) {
                     addEmpty("Local calendar is ready for confirmed performances, pending performances, meetings, calls, soundchecks, arrivals, deadlines, releases, filming and rehearsals.");
                 }
-                for (Entities.EventEntity event : events) {
+                for (Entities.EventEntity event : preview(events, LONG_LIST_LIMIT)) {
                     LinearLayout card = card();
                     card.addView(label(event.title, 17, INK, true));
                     card.addView(label(event.type + " · " + event.status, 12, PURPLE, true));
@@ -287,7 +342,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadFollowUps() {
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.FollowUpEntity> items = dao.getOpenFollowUps();
             runOnUiThread(() -> {
                 if (!"FOLLOW-UPS".equals(currentScreen)) return;
@@ -297,12 +352,12 @@ public final class MainActivity extends Activity {
     }
 
     private void loadContacts() {
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.ContactEntity> contacts = dao.getContacts();
             runOnUiThread(() -> {
                 if (!"CONTACTS".equals(currentScreen)) return;
                 addSectionHeading("RELATIONSHIPS", contacts.size());
-                for (Entities.ContactEntity contact : contacts) {
+                for (Entities.ContactEntity contact : preview(contacts, LONG_LIST_LIMIT)) {
                     if (!contact.careerRelevant) continue;
                     LinearLayout card = card();
                     card.addView(label(contact.displayName, 17, INK, true));
@@ -328,7 +383,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadActivity() {
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.ActivityEntity> activity = dao.getActivity(100);
             runOnUiThread(() -> {
                 if (!"ACTIVITY".equals(currentScreen)) return;
@@ -390,7 +445,7 @@ public final class MainActivity extends Activity {
         TextView status = label("Loading local manager state…", 14, MUTED, false);
         data.addView(status);
         body.addView(data, cardMargin());
-        worker.execute(() -> {
+        reader.execute(() -> {
             int conversations = dao.totalConversationCount();
             int messages = dao.totalMessageCount();
             Entities.SyncStateEntity initial = dao.getSyncState(ManagerEngine.INITIAL_IMPORT_COMPLETE);
@@ -405,39 +460,72 @@ public final class MainActivity extends Activity {
 
     private void ensureInitialImport() {
         if (!hasBeeperAccess() || initialImportRunning) return;
+        initialImportRunning = true;
+        lastImportProgress = 0;
+        lastImportProgressAt = 0;
+        showInitialImportProgress("Preparing the relationship index…", 0, 0);
         worker.execute(() -> {
-            ManagerEngine engine = engine();
-            if (!engine.isInitialImportComplete()) {
-                initialImportRunning = true;
-                runOnUiThread(() -> {
-                    body.removeAllViews();
-                    addScreenTitle("BUILDING RELATIONSHIP INDEX");
-                    addEmpty("Building Â Search relationship index…");
+            try {
+                ManagerEngine engine = engine();
+                if (engine.isInitialImportComplete()) return;
+                ManagerEngine.Result result = engine.runInitialImport((name, completed, total) -> {
+                    long now = System.currentTimeMillis();
+                    boolean publish = completed == 1 || completed == total
+                            || completed - lastImportProgress >= 10
+                            || now - lastImportProgressAt >= 750;
+                    if (!publish) return;
+                    lastImportProgress = completed;
+                    lastImportProgressAt = now;
+                    runOnUiThread(() -> showInitialImportProgress(name, completed, total));
                 });
-                try {
-                    ManagerEngine.Result result = engine.runInitialImport((name, completed, total) ->
-                            runOnUiThread(() -> {
-                                body.removeAllViews();
-                                addScreenTitle("BUILDING RELATIONSHIP INDEX");
-                                addEmpty("Building Â Search relationship index…\n"
-                                        + completed + " / " + total + "\n" + name);
-                            })
-                    );
-                    runOnUiThread(() -> toast("Initial import complete: " + result.summary()));
-                } catch (Exception error) {
-                    runOnUiThread(() -> toast("Initial import paused: " + safeMessage(error)));
-                } finally {
-                    initialImportRunning = false;
-                    runOnUiThread(() -> {
-                        refreshHeaderStats();
-                        showScreen("TODAY");
-                    });
-                }
+                runOnUiThread(() -> toast("Initial import complete: " + result.summary()));
+            } catch (Exception error) {
+                runOnUiThread(() -> toast("Initial import paused: " + safeMessage(error)));
+            } finally {
+                initialImportRunning = false;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    initialImportStatusView = null;
+                    initialImportProgressView = null;
+                    refreshHeaderStats();
+                    showScreen(currentScreen);
+                });
             }
         });
     }
 
+    private void showInitialImportProgress(String name, int completed, int total) {
+        if (!initialImportRunning || body == null) return;
+        if (initialImportStatusView == null || initialImportStatusView.getParent() == null) {
+            LinearLayout banner = card();
+            banner.addView(label("BUILDING RELATIONSHIP INDEX", 14, PURPLE, true));
+            initialImportStatusView = label("Scanning Beeper safely in the background…", 13, MUTED, false);
+            initialImportStatusView.setPadding(0, dp(7), 0, dp(7));
+            banner.addView(initialImportStatusView);
+            initialImportProgressView = new ProgressBar(
+                    this,
+                    null,
+                    android.R.attr.progressBarStyleHorizontal
+            );
+            initialImportProgressView.setMinHeight(dp(16));
+            banner.addView(initialImportProgressView, new LinearLayout.LayoutParams(-1, dp(16)));
+            body.addView(banner, Math.min(1, body.getChildCount()), cardMargin());
+        }
+        String progress = total > 0 ? completed + " / " + total : "Starting…";
+        initialImportStatusView.setText(progress + "\n" + safe(name)
+                + "\nYou can continue using the controls while this runs.");
+        initialImportProgressView.setIndeterminate(total <= 0);
+        if (total > 0) {
+            initialImportProgressView.setMax(total);
+            initialImportProgressView.setProgress(Math.min(completed, total));
+        }
+    }
+
     private void runReconciliation(String message) {
+        if (initialImportRunning) {
+            toast("The first relationship import is still running in the background.");
+            return;
+        }
         if (!hasBeeperAccess()) {
             requestBeeperAccess();
             return;
@@ -558,7 +646,7 @@ public final class MainActivity extends Activity {
 
     private void refreshHeaderStats() {
         updateMonitoringBadge();
-        worker.execute(() -> {
+        reader.execute(() -> {
             List<Entities.ConversationEntity> recent = dao.getRecentConversations(1);
             long beeper = recent.isEmpty() ? 0 : recent.get(0).lastActivityAt;
             Entities.SyncStateEntity sync = dao.getSyncState(ManagerEngine.LAST_RECONCILIATION);
@@ -613,7 +701,7 @@ public final class MainActivity extends Activity {
     private void addActionSection(String title, List<Entities.ActionEntity> items) {
         addSectionHeading(title, items.size());
         if (items.isEmpty()) addEmpty("Nothing here right now.");
-        for (Entities.ActionEntity item : items) {
+        for (Entities.ActionEntity item : preview(items, DASHBOARD_PREVIEW_LIMIT)) {
             LinearLayout card = card();
             card.addView(label(safe(item.contactName), 17, INK, true));
             card.addView(label(item.status + " · " + item.priority + " · " + safe(item.source), 12, PURPLE, true));
@@ -635,7 +723,7 @@ public final class MainActivity extends Activity {
     private void addOpportunitySection(String title, List<Entities.OpportunityEntity> items) {
         addSectionHeading(title, items.size());
         if (items.isEmpty()) addEmpty("Nothing here right now.");
-        for (Entities.OpportunityEntity item : items) {
+        for (Entities.OpportunityEntity item : preview(items, DASHBOARD_PREVIEW_LIMIT)) {
             LinearLayout card = card();
             card.addView(label(safe(item.contactName), 17, INK, true));
             card.addView(label(safe(item.type) + " · " + safe(item.status) + " · " + safe(item.source), 12, PURPLE, true));
@@ -650,7 +738,7 @@ public final class MainActivity extends Activity {
     private void addFollowUpSection(String title, List<Entities.FollowUpEntity> items) {
         addSectionHeading(title, items.size());
         if (items.isEmpty()) addEmpty("Nothing here right now.");
-        for (Entities.FollowUpEntity item : items) {
+        for (Entities.FollowUpEntity item : preview(items, DASHBOARD_PREVIEW_LIMIT)) {
             LinearLayout card = card();
             card.addView(label(safe(item.contactName), 17, INK, true));
             card.addView(label("WAITING ON " + safe(item.waitingOn), 12, PURPLE, true));
@@ -664,7 +752,7 @@ public final class MainActivity extends Activity {
     private void addActivitySection(String title, List<Entities.ActivityEntity> items) {
         addSectionHeading(title, items.size());
         if (items.isEmpty()) addEmpty("No manager activity yet.");
-        for (Entities.ActivityEntity item : items) {
+        for (Entities.ActivityEntity item : preview(items, LONG_LIST_LIMIT)) {
             LinearLayout card = card();
             card.addView(label(item.type.replace('_', ' '), 12, CYAN, true));
             card.addView(label(safe(item.summary), 14, INK, false));
@@ -696,6 +784,10 @@ public final class MainActivity extends Activity {
         toast(result.explanation);
     }
 
+    private <T> List<T> preview(List<T> items, int limit) {
+        int count = Math.min(items.size(), Math.max(0, limit));
+        return items.subList(0, count);
+    }
     private List<Entities.ActionEntity> filterActions(
             List<Entities.ActionEntity> input,
             String field,
@@ -779,7 +871,10 @@ public final class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setTypeface(Typeface.DEFAULT_BOLD);
         button.setBackground(roundRect(color, 16));
-        button.setMinHeight(dp(54));
+        button.setMinHeight(dp(56));
+        button.setPadding(dp(16), dp(10), dp(16), dp(10));
+        button.setContentDescription(text);
+        button.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(56)));
         return button;
     }
 
@@ -800,6 +895,8 @@ public final class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setTypeface(Typeface.DEFAULT_BOLD);
         button.setBackground(roundRect(color, 12));
+        button.setMinHeight(dp(48));
+        button.setPadding(dp(8), dp(6), dp(8), dp(6));
         return button;
     }
 

@@ -117,6 +117,29 @@ public class LocalIntelligenceTest {
         );
     }
 
+    @Test
+    public void initialImportTriagesOnlyTheLatestIncomingMessage() {
+        Entities.MessageEntity firstIncoming = message("first", false, "festival booking", 100);
+        Entities.MessageEntity latestIncoming = message("latest", false, "call me tomorrow", 200);
+        Entities.MessageEntity outgoing = message("outgoing", true, "thanks bro", 300);
+
+        List<Entities.MessageEntity> selected = ManagerEngine.selectCandidateMessages(
+                List.of(firstIncoming, latestIncoming, outgoing),
+                true
+        );
+
+        assertEquals(1, selected.size());
+        assertEquals("latest", selected.get(0).messageId);
+    }
+
+    @Test
+    public void incrementalImportTriagesEveryUnseenMessage() {
+        List<Entities.MessageEntity> messages = List.of(
+                message("one", false, "festival", 100),
+                message("two", true, "thanks", 200)
+        );
+        assertEquals(2, ManagerEngine.selectCandidateMessages(messages, false).size());
+    }
     private static Entities.MessageEntity message(
             String id,
             boolean sentByMe,
@@ -132,5 +155,3 @@ public class LocalIntelligenceTest {
         return entity;
     }
 }
-
-

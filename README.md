@@ -2,11 +2,13 @@
 
 Â Search Artist Manager is the Android body and control panel for **Â Search**, Ale Noa's artist-management intelligence. Beeper and future Gmail, Calendar and research integrations are data workers; Â Search remains the decision-making brain.
 
-## v0.4A — Live Manager Foundation
+## v0.4A.1 — Portrait & Stability Fix
 
 This milestone turns the verified v0.3 Beeper reader into a persistent local manager foundation:
 
 - a polished Today dashboard with opportunities, actions, follow-ups, contacts, calendar and activity
+- responsive 3×2 portrait navigation, accessible touch targets and bounded card previews
+- a throttled background relationship import that keeps dashboard controls responsive
 - a Room database for conversations, messages, relationship memory, communication style, manager decisions and checkpoints
 - a one-time full relationship-index import followed by incremental Beeper reconciliation
 - a lifecycle-aware, debounced ContentObserver while the app process is active
@@ -21,7 +23,7 @@ No OpenAI API, paid API, hosting service, database subscription or recurring-cha
 
 ## Strict read-only safety
 
-v0.4A requests Beeper read access and only queries:
+v0.4A.1 requests Beeper read access and only queries:
 
 - content://com.beeper.api/chats
 - content://com.beeper.api/messages
@@ -30,7 +32,7 @@ It has no Beeper provider write operation and no Beeper message-send permission.
 
 ## First launch and normal operation
 
-1. Install **A-Search-Artist-Manager-v0.4A.apk**.
+1. Install **A-Search-Artist-Manager-v0.4A.1.apk**.
 2. Open the app and grant Beeper read access.
 3. Keep the app open while it shows **Building Â Search relationship index…**. This full import is resumable through Room deduplication.
 4. After the initial index, normal checks compare chat metadata to per-conversation checkpoints and query messages only for changed conversations.
@@ -54,7 +56,7 @@ Normal manager use does not require JSON export.
 
 ## Local intelligence boundary
 
-**LocalCandidateBrain** is conservative triage for v0.4A. It does not perform internet research, deep semantic reasoning or reply generation. Contact-intelligence records support source URLs, dates, summaries, confidence and refresh times so a future Â Search research worker can save public professional findings with traceability.
+**LocalCandidateBrain** is conservative triage for v0.4A.1. It does not perform internet research, deep semantic reasoning or reply generation. Contact-intelligence records support source URLs, dates, summaries, confidence and refresh times so a future Â Search research worker can save public professional findings with traceability.
 
 Communication-style profiles:
 
@@ -80,5 +82,4 @@ The test suite covers:
 - Malta time conversion
 - deterministic fallback message identity
 
-Pushes to **main** and manual workflow runs test and build the APK. Successful builds upload an artifact and create or update the separate v0.4A release while leaving v0.3 intact.
-
+Pushes to **main** and manual workflow runs test and build the APK. Successful builds upload an artifact and create or update the separate v0.4A.1 release while leaving v0.3 intact.
