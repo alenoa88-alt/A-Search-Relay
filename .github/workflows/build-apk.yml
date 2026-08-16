@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   build:
-    name: Build read-only debug APK
+    name: Test and build v0.4A
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repository
@@ -49,7 +49,7 @@ jobs:
             exit 1
           fi
           if grep -R -E 'ContentResolver[[:space:]]*\.[[:space:]]*insert|contentResolver[[:space:]]*\.[[:space:]]*insert' "$source_dir"; then
-            echo "::error::Forbidden ContentResolver write call found"
+            echo "::error::Forbidden ContentResolver provider write call found"
             exit 1
           fi
           if grep -R -E 'content://com\.beeper\.api/messages[^\n]*(insert|write|send)' "$source_dir"; then
@@ -57,6 +57,9 @@ jobs:
             exit 1
           fi
           echo "Strict read-only source verification passed"
+
+      - name: Run unit and Room tests
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
 
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
@@ -66,13 +69,13 @@ jobs:
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk \
-            dist/A-Search-Artist-Manager-v0.3-readonly.apk
+            dist/A-Search-Artist-Manager-v0.4A.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: A-Search-Artist-Manager-v0.3-readonly
-          path: dist/A-Search-Artist-Manager-v0.3-readonly.apk
+          name: A-Search-Artist-Manager-v0.4A
+          path: dist/A-Search-Artist-Manager-v0.4A.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -82,15 +85,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v0.3-readonly"
-          apk="dist/A-Search-Artist-Manager-v0.3-readonly.apk"
-          notes="Strict read-only Android build for Beeper validation. Sending is disabled."
+          tag="v0.4A-live-manager-foundation"
+          apk="dist/A-Search-Artist-Manager-v0.4A.apk"
+          notes="Live Manager Foundation: Room relationship memory, incremental read-only Beeper monitoring, WorkManager recovery, manager dashboard, per-contact style profiles and future Â Search brain interfaces."
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$tag" "$apk" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "Â Search Artist Manager v0.3 Read-Only" \
+              --title "Â Search Artist Manager v0.4A — Live Manager Foundation" \
               --notes "$notes"
           fi

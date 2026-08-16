@@ -1,36 +1,84 @@
 # Â Search Artist Manager
 
-Â Search Artist Manager is an Android companion for validating read access to conversations already connected in Beeper. The core intelligence is called **Â Search**.
+Â Search Artist Manager is the Android body and control panel for **Â Search**, Ale Noa's artist-management intelligence. Beeper and future Gmail, Calendar and research integrations are data workers; Â Search remains the decision-making brain.
 
-## v0.3 is strictly read-only
+## v0.4A — Live Manager Foundation
 
-This build requests only Beeper read access. It queries the Android Content Provider and has no Beeper message-writing path. Sending remains disabled until the read-only verification succeeds on a real device.
+This milestone turns the verified v0.3 Beeper reader into a persistent local manager foundation:
 
-Beeper must already be installed, signed in, and connected to the networks you want to scan, such as WhatsApp, Instagram, Facebook/Messenger, or any other network Beeper exposes.
+- a polished Today dashboard with opportunities, actions, follow-ups, contacts, calendar and activity
+- a Room database for conversations, messages, relationship memory, communication style, manager decisions and checkpoints
+- a one-time full relationship-index import followed by incremental Beeper reconciliation
+- a lifecycle-aware, debounced ContentObserver while the app process is active
+- approximately hourly recovery reconciliation through WorkManager, subject to Android battery scheduling
+- a prominent **⚡ CHECK NOW** action that processes unseen deltas without exporting JSON
+- local candidate triage that requires conversation and career-context signals rather than permanently classifying a chat from one keyword
+- person-specific communication-style profiles built only from Ale's historical messages where **isSentByMe** is true
+- Malta time context and original-language preservation
+- future interfaces for the remote Â Search brain, public professional research and approval-gated reply drafting
 
-## Install
+No OpenAI API, paid API, hosting service, database subscription or recurring-charge service is used.
 
-1. Open the repository's **Releases** page from your Android phone.
-2. Download **A-Search-Artist-Manager-v0.3-readonly.apk**.
-3. Open the download and allow installation from your browser or file manager if Android asks.
-4. Launch **Â Search Artist Manager**.
+## Strict read-only safety
 
-The APK is also retained as the **A-Search-Artist-Manager-v0.3-readonly** artifact on successful GitHub Actions runs.
+v0.4A requests Beeper read access and only queries:
 
-## Verify Beeper access
+- content://com.beeper.api/chats
+- content://com.beeper.api/messages
 
-1. Tap **Grant Beeper Read Access** and approve Beeper's read-only prompt.
-2. Tap **Run Verification** for a complete validation scan.
-3. Tap **⚡ CHECK EVERYTHING NOW** whenever you want a fresh scan of every accessible chat.
-4. Tap **Export / Share JSON** and share the snapshot to ChatGPT.
+It has no Beeper provider write operation and no Beeper message-send permission. Message sending and auto-send remain architecture-only future concepts; financial, contractual, performance and sensitive commitments require an approval policy.
 
-The scan uses offset pagination across all accessible chats. It records each Beeper room ID, raw and normalized network labels, timestamps, sender identity fields, message direction through **isSentByMe**, and a bounded sample of text history for every conversation.
+## First launch and normal operation
 
-The exported handoff tells ChatGPT to scan everything accessible but retain only music-career-relevant contacts and information for Â Search Artist Manager. The Android app does not permanently classify conversations using crude keywords; semantic classification belongs to Â Search.
+1. Install **A-Search-Artist-Manager-v0.4A.apk**.
+2. Open the app and grant Beeper read access.
+3. Keep the app open while it shows **Building Â Search relationship index…**. This full import is resumable through Room deduplication.
+4. After the initial index, normal checks compare chat metadata to per-conversation checkpoints and query messages only for changed conversations.
+5. Use **⚡ CHECK NOW** for an immediate incremental reconciliation.
 
-## Build
+Background Monitoring can be paused under **Settings**. Android does not guarantee a hidden permanent process: active-process changes use Beeper's chat ContentObserver, while WorkManager provides inexact recovery work around hourly.
 
-The project uses JDK 17, Android Gradle Plugin 8.7.3, Gradle 8.9, and Android SDK 35.
+## Open Chat limitation
 
-Pushes to **main** and manual workflow dispatches build a debug APK and upload it as the **A-Search-Artist-Manager-v0.3-readonly** artifact.
+Beeper's current official Android intent documentation does not expose a supported exact-room deep link. **OPEN CHAT** therefore stores the exact room ID and evidence internally, copies the conversation title, launches Beeper, and clearly explains the fallback. Use **Settings → Diagnostics → TEST OPEN CHAT** for real-device validation.
+
+## Diagnostics
+
+The former developer actions are under **Settings → Diagnostics**:
+
+- Run Verification
+- Export / Share JSON
+- TEST OPEN CHAT
+
+Normal manager use does not require JSON export.
+
+## Local intelligence boundary
+
+**LocalCandidateBrain** is conservative triage for v0.4A. It does not perform internet research, deep semantic reasoning or reply generation. Contact-intelligence records support source URLs, dates, summaries, confidence and refresh times so a future Â Search research worker can save public professional findings with traceability.
+
+Communication-style profiles:
+
+- use only Ale's outgoing messages
+- maintain per-contact evidence and confidence
+- weight recent samples more strongly
+- preserve language, punctuation, capitalization, terms, greetings, closings and actual emoji behavior
+- fall back safely when history is insufficient
+
+## Build and tests
+
+GitHub Actions uses JDK 17, Android SDK 35, Gradle 8.9, Android Gradle Plugin 8.7.3, Room 2.8.4 and WorkManager 2.11.2.
+
+The test suite covers:
+
+- Room message deduplication and initial-schema creation
+- conversation checkpoints and delta imports
+- incoming/outgoing direction
+- outgoing-only style evidence
+- relationship persistence
+- candidate generation and personal-chat rejection
+- no-follow-up waiting state
+- Malta time conversion
+- deterministic fallback message identity
+
+Pushes to **main** and manual workflow runs test and build the APK. Successful builds upload an artifact and create or update the separate v0.4A release while leaving v0.3 intact.
 
