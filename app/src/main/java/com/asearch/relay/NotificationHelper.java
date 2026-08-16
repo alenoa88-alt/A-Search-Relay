@@ -9,8 +9,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
-import com.asearch.relay.data.Entities;
-import com.asearch.relay.data.ManagerDatabase;
 
 public final class NotificationHelper {
     private static final String CHANNEL_ID = "manager_attention";
@@ -18,10 +16,6 @@ public final class NotificationHelper {
     private NotificationHelper() {}
 
     public static void notifyCandidate(Context context, long actionId, String contact, String category) {
-        Entities.SyncStateEntity initial = ManagerDatabase.get(context)
-                .managerDao()
-                .getSyncState(ManagerEngine.INITIAL_IMPORT_COMPLETE);
-        if (initial == null || !"true".equals(initial.value)) return;
         if (Build.VERSION.SDK_INT >= 33
                 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -57,3 +51,5 @@ public final class NotificationHelper {
         manager.notify((int) (actionId % Integer.MAX_VALUE), notification);
     }
 }
+
+

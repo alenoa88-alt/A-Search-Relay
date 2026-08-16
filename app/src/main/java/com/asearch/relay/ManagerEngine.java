@@ -303,7 +303,7 @@ public final class ManagerEngine {
         action.relevantMessageId = message.messageId;
         action.updatedAt = System.currentTimeMillis();
         long id = dao.insertAction(action);
-        if (id != -1 && candidate.confidence >= 0.7) {
+        if (id != -1 && candidate.confidence >= 0.7 && isInitialImportComplete()) {
             NotificationHelper.notifyCandidate(context, id, contact.displayName, candidate.category);
         }
         return id != -1;
@@ -373,3 +373,4 @@ public final class ManagerEngine {
         dao.upsertSyncState(state);
     }
 }
+
