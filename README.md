@@ -2,12 +2,12 @@
 
 Â Search Artist Manager is the Android body and control panel for **Â Search**, Ale Noa's artist-management intelligence. Beeper and future Gmail, Calendar and research integrations are data workers; Â Search remains the decision-making brain.
 
-## v0.4A.1 — Portrait & Stability Fix
+## v0.4A.2 — Menu & ChatGPT Handoff
 
 This milestone turns the verified v0.3 Beeper reader into a persistent local manager foundation:
 
 - a polished Today dashboard with opportunities, actions, follow-ups, contacts, calendar and activity
-- responsive 3×2 portrait navigation, accessible touch targets and bounded card previews
+- Android system-bar insets and a top hamburger menu that stay clear of phone controls, accessible touch targets and bounded card previews
 - a throttled background relationship import that keeps dashboard controls responsive
 - a Room database for conversations, messages, relationship memory, communication style, manager decisions and checkpoints
 - a one-time full relationship-index import followed by incremental Beeper reconciliation
@@ -23,7 +23,7 @@ No OpenAI API, paid API, hosting service, database subscription or recurring-cha
 
 ## Strict read-only safety
 
-v0.4A.1 requests Beeper read access and only queries:
+v0.4A.2 requests Beeper read access and only queries:
 
 - content://com.beeper.api/chats
 - content://com.beeper.api/messages
@@ -32,7 +32,7 @@ It has no Beeper provider write operation and no Beeper message-send permission.
 
 ## First launch and normal operation
 
-1. Install **A-Search-Artist-Manager-v0.4A.1.apk**.
+1. Install **A-Search-Artist-Manager-v0.4A.2.apk**.
 2. Open the app and grant Beeper read access.
 3. Keep the app open while it shows **Building Â Search relationship index…**. This full import is resumable through Room deduplication.
 4. After the initial index, normal checks compare chat metadata to per-conversation checkpoints and query messages only for changed conversations.
@@ -42,7 +42,13 @@ Background Monitoring can be paused under **Settings**. Android does not guarant
 
 ## Open Chat limitation
 
-Beeper's current official Android intent documentation does not expose a supported exact-room deep link. **OPEN CHAT** therefore stores the exact room ID and evidence internally, copies the conversation title, launches Beeper, and clearly explains the fallback. Use **Settings → Diagnostics → TEST OPEN CHAT** for real-device validation.
+Beeper's current official Android intent documentation does not expose a supported exact-room deep link. **COPY NAME + OPEN BEEPER** therefore stores the exact room ID and evidence internally, copies the conversation title, launches Beeper, and clearly explains the fallback. Use **Settings → Diagnostics → TEST OPEN CHAT** for real-device validation.
+
+## ChatGPT handoff
+
+Manager action, opportunity and follow-up cards include **ASK A SEARCH IN CHATGPT**. It sends a structured evidence prompt and up to 20 recent messages to the installed ChatGPT app through Android sharing, with no OpenAI API key. The prompt is also copied as a fallback. The user reviews it and presses Send in ChatGPT; background or silent ChatGPT submission is not claimed.
+
+The handoff instructs ChatGPT not to invent facts or report external actions as completed. Calls, attendance, travel, performances, signatures, spending, uploads and final business or creative decisions remain human-required.
 
 ## Diagnostics
 
@@ -56,7 +62,7 @@ Normal manager use does not require JSON export.
 
 ## Local intelligence boundary
 
-**LocalCandidateBrain** is conservative triage for v0.4A.1. It does not perform internet research, deep semantic reasoning or reply generation. Contact-intelligence records support source URLs, dates, summaries, confidence and refresh times so a future Â Search research worker can save public professional findings with traceability.
+**LocalCandidateBrain** is conservative triage for v0.4A.2. It does not perform internet research, deep semantic reasoning or reply generation. Contact-intelligence records support source URLs, dates, summaries, confidence and refresh times so a future Â Search research worker can save public professional findings with traceability.
 
 Communication-style profiles:
 
@@ -78,8 +84,9 @@ The test suite covers:
 - outgoing-only style evidence
 - relationship persistence
 - candidate generation and personal-chat rejection
-- no-follow-up waiting state
+- no-follow-up waiting state and automated-acknowledgement rejection
 - Malta time conversion
 - deterministic fallback message identity
+- portrait hamburger navigation and ChatGPT human-safety prompts
 
-Pushes to **main** and manual workflow runs test and build the APK. Successful builds upload an artifact and create or update the separate v0.4A.1 release while leaving v0.3 intact.
+Pushes to **main** and manual workflow runs test and build the APK. Successful builds upload an artifact and create or update the separate v0.4A.2 release while leaving v0.3 intact.

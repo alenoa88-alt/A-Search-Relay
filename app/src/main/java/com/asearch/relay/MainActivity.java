@@ -17,7 +17,7 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
-import android.widget.HorizontalScrollView;
+import android.widget.PopupMenu;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -26,6 +26,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.asearch.relay.data.Entities;
 import com.asearch.relay.data.ManagerDao;
@@ -137,6 +140,11 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(SURFACE);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return windowInsets;
+        });
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
@@ -152,9 +160,10 @@ public final class MainActivity extends Activity {
         brand.addView(title);
         brand.addView(subtitle);
         titleRow.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
-        Button settings = compactButton("SETTINGS", Color.rgb(42, 54, 82));
-        settings.setOnClickListener(view -> showScreen("SETTINGS"));
-        titleRow.addView(settings);
+        Button menu = compactButton("☰ MENU", Color.rgb(42, 54, 82));
+        menu.setContentDescription("Open manager menu");
+        menu.setOnClickListener(this::showNavigationMenu);
+        titleRow.addView(menu);
         header.addView(titleRow);
 
         monitoringBadge = label("", 12, Color.WHITE, true);
@@ -191,51 +200,24 @@ public final class MainActivity extends Activity {
         body.setPadding(dp(16), dp(16), dp(16), dp(30));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        root.addView(buildNavigation());
         updateMonitoringBadge();
         return root;
     }
 
-    private View buildNavigation() {
-        String[] tabs = {"TODAY", "OPPORTUNITIES", "CALENDAR", "FOLLOW-UPS", "CONTACTS", "ACTIVITY"};
-        if (isPortrait()) {
-            LinearLayout navigation = new LinearLayout(this);
-            navigation.setOrientation(LinearLayout.VERTICAL);
-            navigation.setPadding(dp(6), dp(5), dp(6), dp(5));
-            navigation.setBackgroundColor(Color.WHITE);
-            for (int rowIndex = 0; rowIndex < 2; rowIndex++) {
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                for (int column = 0; column < 3; column++) {
-                    String tab = tabs[rowIndex * 3 + column];
-                    Button button = navigationButton(tab);
-                    row.addView(button, new LinearLayout.LayoutParams(0, dp(48), 1));
-                }
-                navigation.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
-            }
-            return navigation;
+    private void showNavigationMenu(View anchor) {
+        String[] destinations = {
+                "TODAY", "OPPORTUNITIES", "CALENDAR", "FOLLOW-UPS",
+                "CONTACTS", "ACTIVITY", "SETTINGS"
+        };
+        PopupMenu popup = new PopupMenu(this, anchor);
+        for (int index = 0; index < destinations.length; index++) {
+            popup.getMenu().add(0, index, index, destinations[index]);
         }
-        HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setBackgroundColor(Color.WHITE);
-        LinearLayout nav = new LinearLayout(this);
-        nav.setPadding(dp(8), dp(7), dp(8), dp(7));
-        for (String tab : tabs) {
-            Button button = navigationButton(tab);
-            button.setMinWidth(dp(120));
-            nav.addView(button, new LinearLayout.LayoutParams(-2, dp(52)));
-        }
-        scroll.addView(nav);
-        return scroll;
-    }
-
-    private Button navigationButton(String tab) {
-        Button button = compactButton(tab, Color.TRANSPARENT);
-        button.setTextColor(INK);
-        button.setSingleLine(true);
-        button.setContentDescription("Open " + tab.toLowerCase(Locale.ROOT));
-        button.setOnClickListener(view -> showScreen(tab));
-        return button;
+        popup.setOnMenuItemClickListener(item -> {
+            showScreen(item.getTitle().toString());
+            return true;
+        });
+        popup.show();
     }
 
     private boolean isPortrait() {
@@ -422,6 +404,17 @@ public final class MainActivity extends Activity {
                 "Grant Beeper Read Access",
                 view -> requestBeeperAccess()
         );
+
+        addSectionHeading("CHATGPT HANDOFF", 0);
+        LinearLayout chatGpt = card();
+        chatGpt.addView(label(
+                "Uses the installed ChatGPT app and your signed-in account. No OpenAI API key is used. You review the manager prompt and press Send in ChatGPT; background or silent submission is not claimed.",
+                13, MUTED, false
+        ));
+        Button testChatGpt = secondaryButton("TEST CHATGPT HANDOFF");
+        testChatGpt.setOnClickListener(view -> sendTestToChatGpt());
+        chatGpt.addView(testChatGpt);
+        body.addView(chatGpt, cardMargin());
 
         addSectionHeading("DIAGNOSTICS", 0);
         LinearLayout diagnostics = card();
@@ -715,6 +708,17 @@ public final class MainActivity extends Activity {
                             + (item.humanRequired ? " · HUMAN REQUIRED" : ""),
                     12, MUTED, false
             ));
+            ChatGptHandoff.Evidence evidence = new ChatGptHandoff.Evidence();
+            evidence.contact = item.contactName;
+            evidence.source = item.source;
+            evidence.itemType = item.category;
+            evidence.status = item.status;
+            evidence.priority = item.priority;
+            evidence.relevantText = item.whatHappened;
+            evidence.whyItMatters = item.whyItMatters;
+            evidence.recommendedNextAction = item.recommendedNextAction;
+            evidence.humanRequired = item.humanRequired;
+            addChatGptButton(card, item.roomId, evidence);
             addOpenChat(card, item.roomId, item.contactName, item.relevantMessageId, item.happenedAt);
             body.addView(card, cardMargin());
         }
@@ -730,6 +734,17 @@ public final class MainActivity extends Activity {
             card.addView(label(safe(item.summary), 15, INK, false));
             card.addView(label("Next\n" + safe(item.nextAction), 14, MUTED, false));
             card.addView(label("Last activity " + formatDate(item.lastActivityAt), 12, MUTED, false));
+            ChatGptHandoff.Evidence evidence = new ChatGptHandoff.Evidence();
+            evidence.contact = item.contactName;
+            evidence.source = item.source;
+            evidence.itemType = item.type;
+            evidence.status = item.status;
+            evidence.priority = item.deadlineAt > 0 ? "DEADLINE" : "NORMAL";
+            evidence.relevantText = item.summary;
+            evidence.whyItMatters = "This was identified as a possible artist-career opportunity.";
+            evidence.recommendedNextAction = item.nextAction;
+            evidence.humanRequired = false;
+            addChatGptButton(card, item.roomId, evidence);
             addOpenChat(card, item.roomId, item.contactName, item.relevantMessageId, item.lastActivityAt);
             body.addView(card, cardMargin());
         }
@@ -744,6 +759,17 @@ public final class MainActivity extends Activity {
             card.addView(label("WAITING ON " + safe(item.waitingOn), 12, PURPLE, true));
             card.addView(label(safe(item.reason), 14, INK, false));
             card.addView(label("Follow up " + formatDate(item.followUpAt), 12, MUTED, false));
+            ChatGptHandoff.Evidence evidence = new ChatGptHandoff.Evidence();
+            evidence.contact = item.contactName;
+            evidence.source = "Beeper";
+            evidence.itemType = "FOLLOW-UP";
+            evidence.status = item.status;
+            evidence.priority = "NORMAL";
+            evidence.relevantText = item.reason;
+            evidence.whyItMatters = "A manager follow-up may be due, but conversation context must be checked first.";
+            evidence.recommendedNextAction = "Assess whether to wait or draft a natural reply for Ale to approve.";
+            evidence.humanRequired = false;
+            addChatGptButton(card, item.roomId, evidence);
             addOpenChat(card, item.roomId, item.contactName, item.relevantMessageId, item.followUpAt);
             body.addView(card, cardMargin());
         }
@@ -761,6 +787,48 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void addChatGptButton(
+            LinearLayout card,
+            String roomId,
+            ChatGptHandoff.Evidence evidence
+    ) {
+        Button ask = primaryButton("ASK A SEARCH IN CHATGPT", PURPLE);
+        ask.setOnClickListener(view -> {
+            addTransientStatus("Preparing reviewed ChatGPT handoff…");
+            reader.execute(() -> {
+                List<Entities.MessageEntity> recent = roomId == null
+                        ? new ArrayList<>()
+                        : dao.getRecentMessages(roomId, 20);
+                String prompt = ChatGptHandoff.buildPrompt(evidence, recent);
+                runOnUiThread(() -> {
+                    boolean direct = ChatGptHandoff.open(this, prompt);
+                    toast(direct
+                            ? "Prompt copied and opened in ChatGPT. Review it, then press Send."
+                            : "ChatGPT was not found directly. Prompt copied; choose an app and review before sending.");
+                });
+            });
+        });
+        card.addView(ask);
+    }
+
+    private void sendTestToChatGpt() {
+        ChatGptHandoff.Evidence evidence = new ChatGptHandoff.Evidence();
+        evidence.contact = "ChatGPT handoff test";
+        evidence.source = "A Search Artist Manager";
+        evidence.itemType = "CONNECTION TEST";
+        evidence.status = "REVIEW";
+        evidence.priority = "NORMAL";
+        evidence.relevantText = "Confirm that this manager context reached the signed-in ChatGPT app.";
+        evidence.whyItMatters = "This verifies the reviewed no-API handoff.";
+        evidence.recommendedNextAction = "Explain that no external action has been performed.";
+        evidence.humanRequired = false;
+        String prompt = ChatGptHandoff.buildPrompt(evidence, new ArrayList<>());
+        boolean direct = ChatGptHandoff.open(this, prompt);
+        toast(direct
+                ? "Test prompt copied and opened. Review it, then press Send in ChatGPT."
+                : "Prompt copied. Select ChatGPT in the share menu, review it, then press Send.");
+    }
+
     private void addOpenChat(
             LinearLayout card,
             String roomId,
@@ -768,7 +836,7 @@ public final class MainActivity extends Activity {
             String messageId,
             long timestamp
     ) {
-        Button open = secondaryButton("OPEN CHAT");
+        Button open = secondaryButton("COPY NAME + OPEN BEEPER");
         open.setOnClickListener(view -> openChat(roomId, title, messageId, timestamp));
         card.addView(open);
     }

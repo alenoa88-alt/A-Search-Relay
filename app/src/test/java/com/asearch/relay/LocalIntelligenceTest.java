@@ -70,6 +70,51 @@ public class LocalIntelligenceTest {
     }
 
     @Test
+    public void automatedAcknowledgementIsWaitingNotOpportunity() {
+        Entities.MessageEntity acknowledgement = message(
+                "auto",
+                false,
+                "Thanks for messaging us. We try to be as responsive as possible. We'll get back to you soon.",
+                100
+        );
+        ManagerCandidate candidate = new LocalCandidateBrain().analyze(
+                acknowledgement,
+                List.of(acknowledgement),
+                null
+        );
+        assertTrue(LocalCandidateBrain.isAutomatedAcknowledgement(acknowledgement.text));
+        assertEquals("ACKNOWLEDGEMENT", candidate.category);
+        assertEquals("WAITING", candidate.status);
+        assertFalse(candidate.opportunity);
+        assertFalse(candidate.followUp);
+        assertFalse(candidate.humanRequired);
+    }
+
+    @Test
+    public void chatGptHandoffPreservesHumanBoundaryAndEvidence() {
+        ChatGptHandoff.Evidence evidence = new ChatGptHandoff.Evidence();
+        evidence.contact = "Venue Contact";
+        evidence.source = "Beeper";
+        evidence.itemType = "CALL REQUEST";
+        evidence.status = "ACTION REQUIRED";
+        evidence.priority = "HIGH";
+        evidence.relevantText = "Give me a call tomorrow";
+        evidence.whyItMatters = "A professional contact requested a personal phone call.";
+        evidence.recommendedNextAction = "Ale should review the source conversation.";
+        evidence.humanRequired = true;
+
+        String prompt = ChatGptHandoff.buildPrompt(
+                evidence,
+                List.of(message("call", false, "Give me a call tomorrow", 100))
+        );
+        assertTrue(prompt.contains("Venue Contact"));
+        assertTrue(prompt.contains("CONTACT: Give me a call tomorrow"));
+        assertTrue(prompt.contains("HUMAN REQUIRED"));
+        assertTrue(prompt.contains("do not say that it has happened"));
+        assertTrue(prompt.contains("Do not claim"));
+    }
+
+    @Test
     public void checkpointRulesImportOnlyNewerTimestamps() {
         assertTrue(ManagerEngine.shouldImport(200, 100));
         assertFalse(ManagerEngine.shouldImport(100, 100));

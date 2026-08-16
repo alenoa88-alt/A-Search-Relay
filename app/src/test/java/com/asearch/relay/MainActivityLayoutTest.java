@@ -20,14 +20,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(
-        sdk = 35,
-        application = Application.class,
-        qualifiers = "port"
-)
+@Config(sdk = 35, application = Application.class, qualifiers = "port")
 public class MainActivityLayoutTest {
     @Test
-    public void portraitNavigationKeepsAllSixTabsVisibleAndTouchable() {
+    public void portraitUsesAccessibleTopMenuWithoutBottomNavigation() {
         ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class)
                 .create()
                 .start()
@@ -37,19 +33,24 @@ public class MainActivityLayoutTest {
         List<Button> buttons = new ArrayList<>();
         collectButtons(content, buttons);
 
-        List<String> expected = Arrays.asList(
+        List<String> removedBottomTabs = Arrays.asList(
                 "TODAY", "OPPORTUNITIES", "CALENDAR",
                 "FOLLOW-UPS", "CONTACTS", "ACTIVITY"
         );
-        int found = 0;
+        int menuButtons = 0;
+        int bottomTabs = 0;
         for (Button button : buttons) {
-            if (!expected.contains(button.getText().toString())) continue;
-            found++;
-            assertTrue(button.getMinimumHeight() > 0);
-            assertTrue(button.getLayoutParams().height > 0);
-            assertTrue(button.isClickable());
+            String text = button.getText().toString();
+            if ("☰ MENU".equals(text)) {
+                menuButtons++;
+                assertTrue(button.getMinimumHeight() > 0);
+                assertTrue(button.isClickable());
+                assertEquals("Open manager menu", button.getContentDescription().toString());
+            }
+            if (removedBottomTabs.contains(text)) bottomTabs++;
         }
-        assertEquals(6, found);
+        assertEquals(1, menuButtons);
+        assertEquals(0, bottomTabs);
         controller.pause().stop().destroy();
     }
 

@@ -36,6 +36,20 @@ public final class LocalCandidateBrain implements ManagerBrain {
             List<Entities.MessageEntity> recentContext,
             Entities.RelationshipProfileEntity relationship
     ) {
+        if (isAutomatedAcknowledgement(current == null ? null : current.text)) {
+            ManagerCandidate acknowledgement = new ManagerCandidate();
+            acknowledgement.careerRelevant = true;
+            acknowledgement.opportunity = false;
+            acknowledgement.followUp = false;
+            acknowledgement.humanRequired = false;
+            acknowledgement.category = "ACKNOWLEDGEMENT";
+            acknowledgement.priority = "LOW";
+            acknowledgement.status = "WAITING";
+            acknowledgement.whyItMatters = "This appears to be an automated acknowledgement, not a substantive opportunity reply.";
+            acknowledgement.recommendedNextAction = "Wait for a substantive response; no immediate action is required.";
+            acknowledgement.confidence = 0.94;
+            return acknowledgement;
+        }
         String context = buildContext(current, recentContext);
         int careerSignals = matches(context, CAREER).size();
         int opportunitySignals = matches(context, OPPORTUNITY).size();
@@ -68,6 +82,17 @@ public final class LocalCandidateBrain implements ManagerBrain {
         candidate.confidence = Math.min(0.92,
                 0.38 + careerSignals * 0.09 + opportunitySignals * 0.09 + actionSignals * 0.07);
         return candidate;
+    }
+
+    static boolean isAutomatedAcknowledgement(String text) {
+        if (text == null) return false;
+        String value = text.toLowerCase(Locale.ROOT);
+        int signals = 0;
+        if (value.contains("thanks for messaging") || value.contains("thank you for your message")) signals++;
+        if (value.contains("we'll get back") || value.contains("we will get back")) signals++;
+        if (value.contains("as responsive as possible") || value.contains("automated reply")
+                || value.contains("automatic reply")) signals++;
+        return signals >= 2;
     }
 
     static boolean explicitWaitingOrRejection(String context) {
