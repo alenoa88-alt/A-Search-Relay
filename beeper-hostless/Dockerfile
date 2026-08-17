@@ -22,8 +22,7 @@ ENV HOME=/data \
 WORKDIR /app
 RUN npm init --yes >/dev/null \
     && npm install --omit=dev http-proxy@1.18.1 \
-    && mkdir -p /data /opt/beeper-cli-cache \
-    && beeper version
+    && mkdir -p /data /opt/beeper-cli-cache
 
 COPY gateway.js /app/gateway.js
 COPY entrypoint.sh /usr/local/bin/beeper-hostless-entrypoint
