@@ -4,7 +4,7 @@ const http = require('http');
 const httpProxy = require('http-proxy');
 
 const port = Number(process.env.PORT || 8000);
-const readyFile = `${process.env.HOME || '/data'}/.beeper-hostless-ready`;
+const readyFile = `${process.env.HOME || '/tmp/beeper-data'}/.beeper-hostless-ready`;
 const setupUser = process.env.SETUP_USER || 'artist';
 const setupPassword = process.env.SETUP_PASSWORD || '';
 const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });

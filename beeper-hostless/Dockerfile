@@ -14,15 +14,14 @@ RUN apt-get update \
     && chmod 0755 /usr/local/bin/ttyd \
     && npm install --global beeper-cli@0.6.2
 
-ENV HOME=/data \
-    BEEPER_CLI_CONFIG_DIR=/data/cli \
-    BEEPER_CLI_BINARY_CACHE_DIR=/opt/beeper-cli-cache \
+ENV HOME=/tmp/beeper-data \
+    BEEPER_CLI_CONFIG_DIR=/tmp/beeper-data/cli \
+    BEEPER_CLI_BINARY_CACHE_DIR=/tmp/beeper-cache \
     PORT=8000
 
 WORKDIR /app
 RUN npm init --yes >/dev/null \
-    && npm install --omit=dev http-proxy@1.18.1 \
-    && mkdir -p /data /opt/beeper-cli-cache
+    && npm install --omit=dev http-proxy@1.18.1
 
 COPY gateway.js /app/gateway.js
 COPY entrypoint.sh /usr/local/bin/beeper-hostless-entrypoint
