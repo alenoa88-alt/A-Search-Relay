@@ -17,7 +17,7 @@ RUN apt-get update \
 ENV HOME=/data \
     BEEPER_CLI_CONFIG_DIR=/data/cli \
     BEEPER_CLI_BINARY_CACHE_DIR=/opt/beeper-cli-cache \
-    PORT=8080
+    PORT=8000
 
 WORKDIR /app
 RUN npm init --yes >/dev/null \
@@ -29,6 +29,6 @@ COPY entrypoint.sh /usr/local/bin/beeper-hostless-entrypoint
 COPY setup-flow.sh /usr/local/bin/beeper-setup-flow
 RUN chmod 0755 /usr/local/bin/beeper-hostless-entrypoint /usr/local/bin/beeper-setup-flow
 
-EXPOSE 8080
+EXPOSE 8000
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/beeper-hostless-entrypoint"]

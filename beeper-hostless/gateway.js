@@ -3,7 +3,7 @@ const fs = require('fs');
 const http = require('http');
 const httpProxy = require('http-proxy');
 
-const port = Number(process.env.PORT || 8080);
+const port = Number(process.env.PORT || 8000);
 const readyFile = `${process.env.HOME || '/data'}/.beeper-hostless-ready`;
 const setupUser = process.env.SETUP_USER || 'artist';
 const setupPassword = process.env.SETUP_PASSWORD || '';
@@ -128,6 +128,12 @@ function prepare(req) {
 }
 
 const server = http.createServer((req, res) => {
+  const path = new URL(req.url, 'http://localhost').pathname;
+  if (req.method === 'GET' && (path === '/health' || path === '/healthz')) {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
   authorize(req, res, () => {
     prepare(req);
     proxy.web(req, res, { target: target(), changeOrigin: false });
