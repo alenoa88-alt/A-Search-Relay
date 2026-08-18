@@ -7,7 +7,13 @@ echo "====================="
 echo "This restricted page can only run Beeper setup and account linking."
 echo
 
-beeper setup --server --install
+beeper targets add server server --port 23373 --default >/dev/null 2>&1 || true
+read -r -p "Beeper account email: " beeper_email
+if [ -z "$beeper_email" ]; then
+  echo "Email is required to sign in to Beeper."
+  exit 1
+fi
+beeper setup --server --email "$beeper_email"
 
 while true; do
   echo

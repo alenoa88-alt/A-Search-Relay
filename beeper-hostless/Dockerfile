@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM node:20-bookworm-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl procps tini \
@@ -16,12 +16,38 @@ RUN apt-get update \
 
 ENV HOME=/tmp/beeper-data \
     BEEPER_CLI_CONFIG_DIR=/tmp/beeper-data/cli \
-    BEEPER_CLI_BINARY_CACHE_DIR=/tmp/beeper-cache \
+    BEEPER_CLI_BINARY_CACHE_DIR=/opt/beeper-cli-cache \
+    BEEPER_SERVER_BIN=/usr/local/bin/beeper-server-hostless \
     PORT=8000
 
 WORKDIR /app
 RUN npm init --yes >/dev/null \
-    && npm install --omit=dev http-proxy@1.18.1
+    && npm install --omit=dev http-proxy@1.18.1 \
+    && mkdir -p /opt/beeper-cli-cache /tmp/beeper-build/cli \
+    && HOME=/tmp/beeper-build BEEPER_CLI_CONFIG_DIR=/tmp/beeper-build/cli beeper version >/dev/null 2>&1 \
+    && rm -rf /opt/beeper-cli-cache/*/node_modules/@beeper/desktop-api/node_modules \
+    && find /opt/beeper-cli-cache -type f \( -name '._*' -o -name '*.d.ts' -o -name '*.d.ts.map' \) -delete \
+    && payload_entry="$(find /opt/beeper-cli-cache -path '*/bin/cli.js' -type f | head -n 1)" \
+    && test -n "$payload_entry" \
+    && rm -rf /opt/beeper-cli-cache/bin /usr/local/lib/node_modules/beeper-cli \
+    && rm -f /usr/local/bin/beeper \
+    && printf '#!/bin/sh\nexec node "%s" "$@"\n' "$payload_entry" > /usr/local/bin/beeper \
+    && chmod 0755 /usr/local/bin/beeper \
+    && HOME=/tmp/beeper-build BEEPER_CLI_CONFIG_DIR=/tmp/beeper-build/cli beeper install server --json >/dev/null \
+    && server_bin="$(find /tmp/beeper-build -type f -name beeper-server | head -n 1)" \
+    && test -n "$server_bin" \
+    && cp "$server_bin" /opt/beeper-server \
+    && chmod 0755 /opt/beeper-server \
+    && mkdir -p /opt/beeper-server-home /tmp/beeper-server-data \
+    && ( HOME=/opt/beeper-server-home timeout 20s /opt/beeper-server --host=127.0.0.1 --port=23373 --data-dir=/tmp/beeper-server-data >/dev/null 2>&1 || test "$?" -eq 124 ) \
+    && server_entry="$(find /opt/beeper-server-home -path '*/app/build/main/server.mjs' -type f | head -n 1)" \
+    && test -n "$server_entry" \
+    && printf '#!/bin/sh\nexec node "%s" "$@"\n' "$server_entry" > /usr/local/bin/beeper-server-hostless \
+    && chmod 0755 /usr/local/bin/beeper-server-hostless \
+    && rm -f /opt/beeper-server \
+    && rm -rf /tmp/beeper-server-data \
+    && rm -rf /tmp/beeper-build \
+    && beeper version >/dev/null
 
 COPY gateway.js /app/gateway.js
 COPY entrypoint.sh /usr/local/bin/beeper-hostless-entrypoint

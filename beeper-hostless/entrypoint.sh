@@ -4,7 +4,7 @@ set -eu
 state_dir="${HOME:-/tmp/beeper-data}"
 ready_file="$state_dir/.beeper-hostless-ready"
 
-mkdir -p "$state_dir" "$BEEPER_CLI_CONFIG_DIR" "$BEEPER_CLI_BINARY_CACHE_DIR"
+mkdir -p "$state_dir" "$BEEPER_CLI_CONFIG_DIR"
 
 if [ ! -f "$ready_file" ] && [ -z "${SETUP_PASSWORD:-}" ]; then
   echo "SETUP_PASSWORD is required until Beeper setup is complete." >&2
