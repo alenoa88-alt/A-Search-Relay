@@ -44,6 +44,7 @@ RUN npm init --yes >/dev/null \
     && find "$server_app/node_modules/classic-level/prebuilds" -mindepth 1 -maxdepth 1 ! -name linux-x64 -exec rm -rf '{}' + \
     && printf '#!/bin/sh\nexec node "%s" "$@"\n' "$server_entry" > /usr/local/bin/beeper-server-hostless \
     && chmod 0755 /usr/local/bin/beeper-server-hostless \
+    && rm -f /opt/beeper-server \
     && rm -rf /tmp/beeper-server-data /tmp/beeper-build \
     && beeper version >/dev/null
 
