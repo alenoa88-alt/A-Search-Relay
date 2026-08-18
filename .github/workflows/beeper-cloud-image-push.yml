@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -26,10 +27,10 @@ jobs:
         with:
           context: ./beeper-hostless
           file: ./beeper-hostless/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/alenoa88-alt/a-search-relay/beeper-cloud:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-# One-time trigger: accept existing Beeper sign-in and skip duplicate network linking.
+# One-time trigger: publish Oracle-compatible amd64 and arm64 image.
