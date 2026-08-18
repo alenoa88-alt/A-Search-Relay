@@ -32,4 +32,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-# One-time trigger: publish readiness-gated setup wrapper at 738e66a.
+# One-time trigger: accept existing Beeper sign-in and skip duplicate network linking.
