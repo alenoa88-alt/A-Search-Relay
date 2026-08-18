@@ -1,6 +1,22 @@
 #!/bin/bash
 set -u
 
+readiness_state() {
+  beeper status --json 2>/dev/null | node -e '
+    let input = "";
+    process.stdin.on("data", chunk => input += chunk);
+    process.stdin.on("end", () => {
+      try {
+        const parsed = JSON.parse(input);
+        const data = parsed.data || parsed;
+        process.stdout.write(data.readiness?.state || "unknown");
+      } catch {
+        process.stdout.write("unknown");
+      }
+    });
+  '
+}
+
 echo
 echo "Beeper one-time setup"
 echo "====================="
@@ -8,12 +24,68 @@ echo "This restricted page can only run Beeper setup and account linking."
 echo
 
 beeper targets add server server --port 23373 --default >/dev/null 2>&1 || true
-read -r -p "Beeper account email: " beeper_email
-if [ -z "$beeper_email" ]; then
-  echo "Email is required to sign in to Beeper."
-  exit 1
-fi
-beeper setup --server --email "$beeper_email"
+
+state="$(readiness_state)"
+case "$state" in
+  needs-login|login-in-progress|target-unreachable|unknown)
+    read -r -p "Beeper account email: " beeper_email
+    if [ -z "$beeper_email" ]; then
+      echo "Email is required to sign in to Beeper."
+      exit 1
+    fi
+    if ! beeper setup --server --email "$beeper_email"; then
+      echo
+      echo "Beeper sign-in did not complete. WhatsApp setup has NOT started."
+      echo "Refresh this page to retry Beeper sign-in."
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Existing Beeper sign-in found; skipping email login."
+    ;;
+esac
+
+attempt=0
+while true; do
+  state="$(readiness_state)"
+  case "$state" in
+    ready)
+      echo "Beeper is ready. Chat-network setup can begin."
+      break
+      ;;
+    initializing|needs-first-sync|login-in-progress)
+      attempt=$((attempt + 1))
+      if [ "$attempt" -gt 60 ]; then
+        echo "Beeper is still initializing after 5 minutes."
+        echo "No WhatsApp login was started. Refresh later to continue safely."
+        exit 1
+      fi
+      echo "Beeper is still initializing; waiting before WhatsApp setup... ($attempt/60)"
+      sleep 5
+      ;;
+    needs-verification|verification-in-progress)
+      echo "This server must be verified with your existing Beeper device first."
+      beeper verify || exit 1
+      ;;
+    needs-recovery-key|needs-secrets)
+      read -r -s -p "Beeper Recovery Code: " beeper_recovery_key
+      echo
+      beeper verify recovery-key --key "$beeper_recovery_key" || exit 1
+      unset beeper_recovery_key
+      ;;
+    needs-cross-signing-setup)
+      echo "Beeper requires encrypted-storage setup before WhatsApp can connect."
+      echo "Use an already verified Beeper device or your Recovery Code, then refresh."
+      exit 1
+      ;;
+    *)
+      echo "Beeper is not ready (state: $state)."
+      beeper doctor || true
+      echo "WhatsApp setup has NOT started. Refresh after fixing the state above."
+      exit 1
+      ;;
+  esac
+done
 
 while true; do
   echo
